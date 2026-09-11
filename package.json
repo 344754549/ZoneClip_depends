@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:local-ai-runtimes": "node scripts/prepare-local-ai-runtimes.mjs"
+    "prepare:local-ai-runtimes": "node scripts/prepare-local-ai-runtimes.mjs",
+    "prepare:local-ai-models": "node scripts/prepare-local-ai-models.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1127.0",

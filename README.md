@@ -1,6 +1,6 @@
-# ZoneClip Local AI runtimes
+# ZoneClip Local AI dependencies
 
-Versioned llama.cpp and whisper.cpp server runtimes, plus the scripts used to update, package, and upload them.
+Versioned llama.cpp and whisper.cpp server runtimes, pinned model files, and the scripts used to verify, package, and upload them.
 
 These programs are optional. ZoneClip can build and run in ZoneCloud mode without initializing this repository. Native libraries required by the main desktop application remain in the main ZoneClip repository.
 
@@ -52,3 +52,14 @@ npm run prepare:local-ai-runtimes -- --version <version> --s3-uri s3://<bucket>/
 ```
 
 The upload publishes archives first and `manifest.json` last. AWS credentials are read from the standard AWS profile, environment, or IAM role chain.
+
+## Verify and upload Local AI models
+
+Model object paths include their upstream revision or content-hash prefix and are immutable. The client pins each object's path, size, and SHA-256. Publish the models from an already verified ZoneClip model directory:
+
+```bash
+npm run prepare:local-ai-models -- --source-root <ZoneClip-model-directory>
+npm run prepare:local-ai-models -- --source-root <ZoneClip-model-directory> --s3-uri s3://<bucket>/local-ai-model
+```
+
+The command verifies every source file before uploading model objects, then publishes `manifest.json` last. Do not overwrite an existing versioned object with different content; add a new revision path and update the client pins instead.
