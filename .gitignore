@@ -1,6 +1,8 @@
 node_modules/
 release/local-ai-runtime/
 release/local-ai-model/
+release/renderer-base/
+renderer-base/node_modules/
 .DS_Store
 *.tmp
 *.upload.json
