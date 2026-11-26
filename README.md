@@ -74,10 +74,10 @@ Prepare a signed immutable archive using the LAN signing Agent:
 
 ```powershell
 npm install
-npm run prepare:renderer-base -- --version v2
+npm run prepare:renderer-base -- --version v3 --ffmpeg-root C:\ffmpeg
 ```
 
-Renderer base `v1` is reproducibly pinned to Node.js `v24.16.0`; the packaging
+Renderer base builds are reproducibly pinned to Node.js `v24.16.0`; the packaging
 command stops if it is run under a different Node.js version. Publish a new
 immutable renderer-base version when changing Node.js, Remotion, or Chrome.
 
@@ -86,7 +86,7 @@ out at `client/deps/local-ai-runtime`. For a standalone checkout, set
 `ZONECLIP_SIGNING_CLIENT` to `windows-signing-agent.ps1`. Publish with:
 
 ```powershell
-npm run prepare:renderer-base -- --version v2 --s3-uri s3://zoneclip-dev/renderer-base
+npm run prepare:renderer-base -- --version v3 --ffmpeg-root C:\ffmpeg --s3-uri s3://zoneclip-dev/renderer-base/windows-x86_64
 ```
 
 Copy the generated `zoneclip-manifest.json` into ZoneClip only after the archive

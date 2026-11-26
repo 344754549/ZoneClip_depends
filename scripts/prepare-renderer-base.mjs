@@ -26,11 +26,14 @@ const outputRoot = resolve(
   option("--output") ?? join(dependsRoot, "release", "renderer-base", "windows-x86_64"),
 );
 const s3Uri = option("--s3-uri")?.replace(/\/$/u, "");
+const ffmpegRoot = option("--ffmpeg-root")
+  ? resolve(option("--ffmpeg-root"))
+  : null;
 const uploadOnly = args.includes("--upload-only");
 const publicBaseUrl = (
   option("--public-base-url") ?? "https://media.zoneclip.ai/renderer-base/windows-x86_64"
 ).replace(/\/$/u, "");
-const chromeVersion = process.env.ZONECLIP_CHROME_VERSION ?? "149.0.7790.0";
+const chromeVersion = process.env.ZONECLIP_CHROME_VERSION ?? "157.0.8080.0";
 const nodeVersion = "v24.16.0";
 
 if (process.platform !== "win32" || process.arch !== "x64") {
@@ -43,6 +46,9 @@ if (process.version !== nodeVersion) {
 }
 if (!version || !/^[0-9A-Za-z][0-9A-Za-z._-]*$/u.test(version)) {
   throw new Error("--version is required and may contain only letters, numbers, dot, dash, and underscore");
+}
+if (!uploadOnly && !ffmpegRoot) {
+  throw new Error("--ffmpeg-root is required when building a renderer base");
 }
 
 const archiveName = `renderer-base-windows-x86_64-${version}.zip`;
@@ -64,6 +70,12 @@ try {
       ["/d", "/s", "/c", "npm ci --omit=dev --no-audit --no-fund"],
       { cwd: stage, stdio: "inherit" },
     );
+    const rendererPackage = JSON.parse(
+      readFileSync(join(sourceRoot, "package.json"), "utf8"),
+    );
+    const remotionVersion = rendererPackage.dependencies["@remotion/cli"];
+    verifyRemotionVersion(stage, remotionVersion);
+    const ffmpegVersion = installFfmpeg(stage, ffmpegRoot);
     prepareChrome(stage);
     execFileSync(
       process.env.ComSpec ?? "cmd.exe",
@@ -75,7 +87,6 @@ try {
     mkdirSync(bin, { recursive: true });
     const nodeName = "node-win32-x64.exe";
     copyFileSync(process.execPath, join(bin, nodeName));
-    const rendererPackage = JSON.parse(readFileSync(join(sourceRoot, "package.json"), "utf8"));
     const internalManifest = {
       schemaVersion: 1,
       id: `renderer-base-windows-x86_64-${version}`,
@@ -83,7 +94,8 @@ try {
       arch: "x86_64",
       version,
       nodeVersion,
-      remotionVersion: rendererPackage.dependencies["@remotion/cli"],
+      remotionVersion,
+      ffmpegVersion,
       chromeVersion,
       nodeBinary: `bin/${nodeName}`,
       remotionCli: "node_modules/@remotion/cli/remotion-cli.js",
@@ -162,6 +174,66 @@ try {
   }
 } finally {
   rmSync(workspace, { force: true, recursive: true });
+}
+
+function installFfmpeg(runtimeRoot, root) {
+  const sourceBin = join(root, "bin");
+  const sourceFfmpeg = join(sourceBin, "ffmpeg.exe");
+  const sourceFfprobe = join(sourceBin, "ffprobe.exe");
+  const sourceLicense = join(root, "LICENSE");
+  requireFile(sourceFfmpeg);
+  requireFile(sourceFfprobe);
+  requireFile(sourceLicense);
+
+  const compositorRoot = join(
+    runtimeRoot,
+    "node_modules",
+    "@remotion",
+    "compositor-win32-x64-msvc",
+  );
+  requireFile(join(compositorRoot, "remotion.exe"));
+  const encoders = execFileSync(sourceFfmpeg, ["-hide_banner", "-encoders"], {
+    encoding: "utf8",
+  });
+  for (const encoder of ["h264_nvenc", "h264_qsv", "h264_amf", "aac"]) {
+    if (!new RegExp(`\\b${encoder}\\b`, "u").test(encoders)) {
+      throw new Error(`Renderer FFmpeg does not contain ${encoder}: ${sourceFfmpeg}`);
+    }
+  }
+  copyFileSync(sourceFfmpeg, join(compositorRoot, "ffmpeg.exe"));
+  copyFileSync(sourceFfprobe, join(compositorRoot, "ffprobe.exe"));
+  copyFileSync(sourceLicense, join(compositorRoot, "FFMPEG-LICENSE.txt"));
+  const sourceReadme = join(root, "README.txt");
+  if (statSafe(sourceReadme)?.isFile()) {
+    copyFileSync(sourceReadme, join(compositorRoot, "FFMPEG-README.txt"));
+  }
+  console.log(`Installed renderer FFmpeg from ${root}`);
+  return execFileSync(sourceFfmpeg, ["-hide_banner", "-version"], {
+    encoding: "utf8",
+  }).split(/\r?\n/u)[0].trim();
+}
+
+function verifyRemotionVersion(runtimeRoot, expectedVersion) {
+  const cliPackage = JSON.parse(
+    readFileSync(
+      join(runtimeRoot, "node_modules", "@remotion", "cli", "package.json"),
+      "utf8",
+    ),
+  );
+  const compositorPackage = JSON.parse(
+    readFileSync(
+      join(runtimeRoot, "node_modules", "@remotion", "compositor-win32-x64-msvc", "package.json"),
+      "utf8",
+    ),
+  );
+  if (
+    cliPackage.version !== expectedVersion ||
+    compositorPackage.version !== expectedVersion
+  ) {
+    throw new Error(
+      `Remotion version mismatch: expected=${expectedVersion} cli=${cliPackage.version} compositor=${compositorPackage.version}`,
+    );
+  }
 }
 
 function option(name) {
